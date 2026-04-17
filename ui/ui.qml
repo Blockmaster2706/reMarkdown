@@ -41,6 +41,7 @@ Rectangle {
     property bool editState: false
     property int cursorPosition: 0
     property real curY: 0.0
+    property real curYR: 0.0
     property bool metaDown: false
     property bool selector: true
     property string folder: "/home/root/reMarkdown/"
@@ -87,6 +88,9 @@ Rectangle {
                     console.log("rendered HTML returned.");
                     docHTML = contents;
                     renderer.text = docHTML;
+                    if (curYR > 0.0 && curYR <= renderer.height) {
+                        flick.contentY = curYR;
+                    }
                     break;
                 case 102:
                     console.log("rendered HTML word count: " + contents);
@@ -130,6 +134,7 @@ Rectangle {
         } else {
             console.log("Toggling to edit view");
             wc.visible = false;
+            curYR = flick.contentY;
             editState = true;
             editor.text = root.doc;
             editor.cursorPosition = cursorPosition;
@@ -162,6 +167,8 @@ Rectangle {
         }
         if (fileUrl != file) {
             cursorPosition = 0;
+            curYR = 0.0;
+            renderer.text = "";
         }
         root.currentFolder = fileUrl.slice("file://".length, fileUrl.lastIndexOf("/") + 1);
         var xhr = new XMLHttpRequest();
@@ -431,6 +438,7 @@ Rectangle {
             renderType: Text.NativeRendering
             readOnly: false
             font.pointSize: 28
+            selectByKeyboard: true
 
             property bool leftP: false
             property bool rightP: false
