@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -65,8 +66,19 @@ func (state *reMarkdownState) HandleMessage(replier *appload.BackendReplier, mes
 				wordCount += len(strings.Fields(n.Data))
 			}
 		}
-		replier.SendMessage(101, string(rendered_text))
-		replier.SendMessage(102, fmt.Sprint(wordCount))
+
+		res := struct {
+			WordCount int    `json:"wc"`
+			Text      string `json:"text"`
+		}{
+			WordCount: wordCount,
+			Text:      string(rendered_text),
+		}
+		js, err := json.Marshal(res)
+		if err != nil {
+			log.Fatalf("error parsing json: %v", err)
+		}
+		replier.SendMessage(101, string(js))
 	} else if message.MsgType == uint32(FolderRequest) {
 		fmt.Println("Folder request received")
 		folderPath := filepath.Clean("/home/root/reMarkdown/" + message.Contents)

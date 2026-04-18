@@ -48,7 +48,6 @@ Rectangle {
     property string file: ""
     property string selectorText: ""
     property var lastType: -1
-    property int foldercheck: -1
     property string curFilePath: ""
     property string currentFolder: "/home/root/reMarkdown/"
     property string stub: ""
@@ -86,18 +85,16 @@ Rectangle {
             switch (type) {
                 case 101:
                     console.log("rendered HTML returned.");
-                    docHTML = contents;
+                    let js = JSON.parse(contents);
+                    docHTML = js.text;
                     renderer.text = docHTML;
                     if (curYR > 0.0 && curYR <= renderer.height) {
                         flick.contentY = curYR;
                     }
+                    root.wordCount = js.wc;
                     break;
-                case 102:
-                    console.log("rendered HTML word count: " + contents);
-                    root.wordCount = parseInt(contents, 10);
                 case 301:
                 case 302:
-                    foldercheck = 1;
                     break;
             }
         }
@@ -123,7 +120,6 @@ Rectangle {
             cursorPosition = editor.cursorPosition;
             curY = flick.contentY;
             root.doc = editor.text;
-            editState = false;
             if (editor.text.length > 0) {
                 appload.sendMessage(100, doc);
             }
@@ -131,6 +127,7 @@ Rectangle {
                 docHTML = "";
                 renderer.text = "";
             }
+            editState = false;
         } else {
             console.log("Toggling to edit view");
             wc.visible = false;
