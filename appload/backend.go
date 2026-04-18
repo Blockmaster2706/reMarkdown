@@ -173,6 +173,9 @@ func (al *AppLoad) Run() error {
 			MsgType:  msgType,
 			Contents: contents,
 		}
+		if msgType == MsgSystemTerminate {
+			break
+		}
 		al.backend.HandleMessage(replier, message)
 
 		// Process any internal messages
