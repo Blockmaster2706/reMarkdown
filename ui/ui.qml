@@ -42,7 +42,6 @@ Rectangle {
     property int cursorPosition: 0
     property real curY: 0.0
     property real curYR: 0.0
-    property bool metaDown: false
     property bool selector: true
     property string folder: "/home/root/reMarkdown/"
     property string file: ""
@@ -54,6 +53,9 @@ Rectangle {
     property bool closeViaAppload: true
     property bool extKeyboard: false
     property int wordCount: 0
+    property string pathChecked: ""
+    property bool relativePath: false
+    property string clickedLink: ""
 
     signal close
     function unloading() {
@@ -67,22 +69,53 @@ Rectangle {
         }
     }
 
+    signal renderReceived
+    onRenderReceived: {
+        editState = false;
+    }
+
+    signal folderCheckReceived
+    onFolderCheckReceived: {
+        if (clickedLink.length > 0 && relativePath) {
+            let xhr = new XMLHttpRequest();
+            xhr.open('GET', "file://" + root.currentFolder + clickedLink, false);
+            xhr.send();
+            if (xhr.status === 200 || xhr.status === 0) {
+                console.log(clickedLink + " is a .md file: " + root.currentFolder + clickedLink + ", loading.");
+                saveFile();
+                loadFile("file://" + root.currentFolder + clickedLink);
+                return;
+            }
+        }
+        else if (clickedLink.length > 0) {
+            let xhr = new XMLHttpRequest();
+            xhr.open('GET', "file://" + clickedLink, false);
+            xhr.send();
+            if (xhr.status === 200 || xhr.status === 0) {
+                console.log(clickedLink + " is a .md file in " + root.folder + root.pathChecked + ", loading.");
+                saveFile();
+                loadFile("file://" + clickedLink);
+                return;
+            }
+        }
+        else {
+            folderModel.folder = "file://" + root.folder + root.pathChecked;
+        }
+    }
+
     AppLoad {
         id: appload
         applicationID: "reMarkdown"
         onMessageReceived: (type, contents) => {
             console.log("Appload received message " + type);
-            if (type == 200) {
-                console.log("init");
-                folderModel.folder = "file://" + root.folder;
-                return;
-            }
-            else if (type == 201) {
-                root.extKeyboard = true;
-                Qt.inputMethod.hide();
-                return;
-            }
             switch (type) {
+                case 201:
+                    root.extKeyboard = true;
+                    Qt.inputMethod.hide();
+                case 200:
+                    console.log("init");
+                    folderModel.folder = "file://" + root.folder;
+                    break;
                 case 101:
                     console.log("rendered HTML returned.");
                     let js = JSON.parse(contents);
@@ -92,9 +125,11 @@ Rectangle {
                         flick.contentY = curYR;
                     }
                     root.wordCount = js.wc;
+                    root.renderReceived();
                     break;
                 case 301:
                 case 302:
+                    root.folderCheckReceived();
                     break;
             }
         }
@@ -126,8 +161,8 @@ Rectangle {
             else {
                 docHTML = "";
                 renderer.text = "";
+                console.log("empty file, ignoring render request");
             }
-            editState = false;
         } else {
             console.log("Toggling to edit view");
             wc.visible = false;
@@ -536,15 +571,10 @@ Rectangle {
                     }
                     let linkedFileFolder = root.currentFolder.slice(root.folder.length) + link.slice(0, link.lastIndexOf("/") + 1);
                     if (linkedFileFolder.length > 0) {
+                        root.relativePath = true;
+                        root.clickedLink = link;
+                        root.pathChecked = linkedFileFolder;
                         appload.sendMessage(300, linkedFileFolder);
-                    }
-                    let xhr = new XMLHttpRequest();
-                    xhr.open('GET', "file://" + root.currentFolder + link, false);
-                    xhr.send();
-                    if (xhr.status === 200 || xhr.status === 0) {
-                        console.log(link + " is a .md file in " + root.currentFolder + linkedFileFolder + ", loading.");
-                        saveFile();
-                        loadFile("file://" + root.currentFolder + link);
                         return;
                     }
                 }
@@ -555,16 +585,22 @@ Rectangle {
                     }
                     let linkedFileFolder = link.slice(root.folder.length, link.lastIndexOf("/") + 1);
                     if (linkedFileFolder.length > 0) {
+                        root.relativePath = false;
+                        root.clickedLink = link;
+                        root.pathChecked = linkedFileFolder;
                         appload.sendMessage(300, linkedFileFolder);
-                    }
-                    let xhr = new XMLHttpRequest();
-                    xhr.open('GET', "file://" + link, false);
-                    xhr.send();
-                    if (xhr.status === 200 || xhr.status === 0) {
-                        console.log(link + " is a .md file in " + root.folder +", loading.");
-                        saveFile();
-                        loadFile("file://" + link);
                         return;
+                    }
+                    else {
+                        let xhr = new XMLHttpRequest();
+                        xhr.open('GET', "file://" + link, false);
+                        xhr.send();
+                        if (xhr.status === 200 || xhr.status === 0) {
+                            console.log(link + " is a .md file in " + root.folder +", loading.");
+                            saveFile();
+                            loadFile("file://" + link);
+                            return;
+                        }
                     }
                 }
                 console.log(link + " is not a .md file in " + root.folder + ", ignoring.");
@@ -644,8 +680,10 @@ Rectangle {
                             folderModel.folder = "file://" + root.folder;
                             selectorTextEdit.text = "";
                         } else {
+                            root.pathChecked = folderPath;
+                            root.clickedLink = "";
+                            root.relativePath = false;
                             appload.sendMessage(300, folderPath);
-                            folderModel.folder = "file://" + root.folder + folderPath;
                         }
                     }
                     if (selectorText.slice(-1) == "/") {
