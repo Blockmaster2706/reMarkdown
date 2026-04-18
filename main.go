@@ -58,7 +58,8 @@ func (state *reMarkdownState) HandleMessage(replier *appload.BackendReplier, mes
 		rendered_text := mdToHTML([]byte(message.Contents))
 		doc, err := xhtml.Parse(strings.NewReader(string(rendered_text)))
 		if err != nil {
-			log.Fatalf("error parsing HTML: %v", err)
+			fmt.Printf("error parsing HTML: %v", err)
+			replier.SendMessage(103, "HTML")
 		}
 		wordCount := 0
 		for n := range doc.Descendants() {
@@ -76,27 +77,31 @@ func (state *reMarkdownState) HandleMessage(replier *appload.BackendReplier, mes
 		}
 		js, err := json.Marshal(res)
 		if err != nil {
-			log.Fatalf("error parsing json: %v", err)
+			fmt.Printf("error parsing json: %v", err)
+			replier.SendMessage(103, "JSON")
 		}
 		replier.SendMessage(101, string(js))
 	} else if message.MsgType == uint32(FolderRequest) {
 		fmt.Println("Folder request received")
 		folderPath := filepath.Clean("/home/root/reMarkdown/" + message.Contents)
 		if !strings.HasPrefix(folderPath, "/home/root/reMarkdown") {
-			log.Fatalf("Attempted to access folder not in /home/root/reMarkdown")
+			fmt.Println("Attempted to access folder not in /home/root/reMarkdown")
+			replier.SendMessage(303, "Path not supported")
 		}
 		info, err := os.Stat(folderPath)
 		if err == nil {
 			if info.IsDir() {
 				replier.SendMessage(301, "Is a folder")
 			} else {
-				log.Fatalf("folder request received but not a folder")
+				fmt.Println("folder request received but not a folder")
+				replier.SendMessage(304, "Not a folder")
 			}
 		}
 		if errors.Is(err, os.ErrNotExist) {
 			err2 := os.MkdirAll(folderPath, os.ModePerm)
 			if err2 != nil {
-				log.Fatalf("error while creating folder")
+				fmt.Println("error while creating folder")
+				replier.SendMessage(305, "Couldn't create folder")
 			}
 			replier.SendMessage(302, "Created new folder")
 		}
@@ -105,11 +110,13 @@ func (state *reMarkdownState) HandleMessage(replier *appload.BackendReplier, mes
 
 func main() {
 	class := new(reMarkdownState)
-	if _, err := os.Stat("/home/root/reMarkdown"); errors.Is(err, os.ErrNotExist) {
+	if info, err := os.Stat("/home/root/reMarkdown"); errors.Is(err, os.ErrNotExist) {
 		err := os.Mkdir("/home/root/reMarkdown", os.ModePerm)
 		if err != nil {
 			log.Fatalf("error while creating folder")
 		}
+	} else if !info.IsDir() {
+		log.Fatalf("/home/root/reMarkdown not a folder")
 	}
 	app, err := appload.NewAppLoad(class)
 	if err != nil {

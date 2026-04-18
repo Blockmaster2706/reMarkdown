@@ -103,6 +103,13 @@ Rectangle {
         }
     }
 
+    signal folderCheckError
+    onFolderCheckError: {
+        if (clickedLink.length == 0) {
+            selectorTextEdit.text = "";
+        }
+    }
+
     AppLoad {
         id: appload
         applicationID: "reMarkdown"
@@ -127,9 +134,22 @@ Rectangle {
                     root.wordCount = js.wc;
                     root.renderReceived();
                     break;
+                case 103:
+                    console.log("error while rendering: " + contents);
+                    flick.contentY = 0;
+                    root.wordCount = -1;
+                    renderer.text = "COULD NOT RENDER PROPERLY";
+                    root.renderReceived();
+                    break;
                 case 301:
                 case 302:
                     root.folderCheckReceived();
+                    break;
+                case 303:
+                case 304:
+                case 305:
+                    console.log("folder check error: " + contents);
+                    root.folderCheckError();
                     break;
             }
         }
@@ -705,7 +725,7 @@ Rectangle {
                 folderModel.nameFilters = [lastPart + "*.md"];
                 let noItemStartsWith = true;
                 for (var i = 0; i < selectorList.count; i++) {
-                    if (selectorList.itemAtIndex(i).text.toLowerCase().startsWith(lastPart.toLowerCase())) {
+                    if (selectorList.itemAtIndex(i).text.toLowerCase().startsWith(lastPart.ctoLowerCase())) {
                         selectorList.currentIndex = i;
                         noItemStartsWith = false;
                         break;
