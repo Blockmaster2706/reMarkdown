@@ -50,7 +50,6 @@ Rectangle {
     property string curFilePath: ""
     property string currentFolder: "/home/root/reMarkdown/"
     property string stub: ""
-    property bool closeViaAppload: true
     property bool extKeyboard: false
     property int wordCount: 0
     property string pathChecked: ""
@@ -63,10 +62,7 @@ Rectangle {
             saveFile();
         }
         console.log("We're unloading!");
-        if (closeViaAppload) {
-            console.log("Terminating via appload control");
-            appload.terminate();
-        }
+        appload.terminate();
     }
 
     signal renderReceived
@@ -256,8 +252,7 @@ Rectangle {
     function handleKeyEvent(event){
         if (event.key == Qt.Key_Escape) {
             if (selector) {
-                root.closeViaAppload = false;
-                appload.terminate();
+                root.close();
             }
             else if (editState) {
                 saveFile();
@@ -331,8 +326,7 @@ Rectangle {
             height: parent.height * 0.9
             onClicked: {
                 if (selector) {
-                    root.closeViaAppload = false;
-                    appload.terminate();
+                    root.close();
                 }
                 else if (!editState) {
                     toggleView();
