@@ -55,6 +55,7 @@ Rectangle {
     property string pathChecked: ""
     property bool relativePath: false
     property string clickedLink: ""
+    property bool closeViaAppload: true
 
     signal close
     function unloading() {
@@ -62,7 +63,9 @@ Rectangle {
             saveFile();
         }
         console.log("We're unloading!");
-        appload.terminate();
+        if (closeViaAppload) {
+            appload.terminate();
+        }
     }
 
     signal renderReceived
@@ -252,7 +255,8 @@ Rectangle {
     function handleKeyEvent(event){
         if (event.key == Qt.Key_Escape) {
             if (selector) {
-                root.close();
+                closeViaAppload = false;
+                appload.terminate();
             }
             else if (editState) {
                 saveFile();
@@ -326,7 +330,8 @@ Rectangle {
             height: parent.height * 0.9
             onClicked: {
                 if (selector) {
-                    root.close();
+                    closeViaAppload = false;
+                    appload.terminate();
                 }
                 else if (!editState) {
                     toggleView();
@@ -365,6 +370,21 @@ Rectangle {
             onClicked: {
                 wc.Text.text = "Word count: " + root.wordCount;
                 wc.visible = !wc.visible && !editState && !selector;
+            }
+        }
+    }
+
+    Rectangle {
+        width: parent.width * 0.95
+        height: parent.height * 0.025
+        anchors.top: parent.top
+        anchors.horizontalCenter: parent.horizontalCenter
+        MouseArea {
+            anchors.fill: parent
+            onDoubleClicked: {
+                if (!selector) {
+                    flick.contentY = 0;
+                }
             }
         }
     }
