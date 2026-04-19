@@ -4,5 +4,5 @@
     "entry": "/ui/ui.qml",
     "id": "reMarkdown",
     "supportsScaling": true,
-    "canHaveMultipleFrontends": true
+    "canHaveMultipleFrontends": false
 }
