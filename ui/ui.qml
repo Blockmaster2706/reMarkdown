@@ -406,7 +406,7 @@ Rectangle {
         anchors.top: flick.bottom
         anchors.horizontalCenter: parent.horizontalCenter
         TapHandler {
-            exclusiveSignals: (TapHandler.SingleTap | TapHanlder.DoubleTap)
+            exclusiveSignals: (TapHandler.SingleTap | TapHandler.DoubleTap)
             onSingleTapped: {
                 if (!selector && !editState) {
                     if (renderer.height > root.height * 0.9 && flick.contentY <= renderer.height - root.height / 2 - 400) {
