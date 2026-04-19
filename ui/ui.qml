@@ -377,7 +377,7 @@ Rectangle {
     }
 
     Rectangle {
-        width: parent.width * 0.95
+        width: parent.width * 0.33
         height: parent.height * 0.025
         anchors.top: parent.top
         anchors.horizontalCenter: parent.horizontalCenter
@@ -392,9 +392,9 @@ Rectangle {
     }
     
     Flickable {
-	id: flick
-	width: parent.width * 0.95
-	height: Qt.inputMethod.visible ? parent.height * 0.95 - Qt.inputMethod.keyboardRectangle.height : parent.height * 0.95
+	    id: flick
+	    width: parent.width * 0.95
+	    height: Qt.inputMethod.visible ? parent.height * 0.95 - Qt.inputMethod.keyboardRectangle.height : parent.height * 0.95
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.top: parent.top
         anchors.topMargin: parent.height * 0.025
