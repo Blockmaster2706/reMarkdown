@@ -64,6 +64,7 @@ Rectangle {
         }
         console.log("We're unloading!");
         if (closeViaAppload) {
+            closeViaAppload = false;
             appload.terminate();
         }
     }
@@ -71,6 +72,10 @@ Rectangle {
     signal renderReceived
     onRenderReceived: {
         editState = false;
+        if (curYR > 0.0 && curYR <= renderer.height) {
+            flick.contentY = curYR;
+        }
+        
     }
 
     signal folderCheckReceived
@@ -127,9 +132,6 @@ Rectangle {
                     let js = JSON.parse(contents);
                     docHTML = js.text;
                     renderer.text = docHTML;
-                    if (curYR > 0.0 && curYR <= renderer.height) {
-                        flick.contentY = curYR;
-                    }
                     root.wordCount = js.wc;
                     root.renderReceived();
                     break;
