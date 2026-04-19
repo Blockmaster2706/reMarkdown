@@ -47,6 +47,7 @@ Rectangle {
     property string file: ""
     property string selectorText: ""
     property var lastType: -1
+    property var lastScroll: -1
     property string curFilePath: ""
     property string currentFolder: "/home/root/reMarkdown/"
     property string stub: ""
@@ -72,8 +73,11 @@ Rectangle {
     signal renderReceived
     onRenderReceived: {
         editState = false;
-        if (curYR > 0.0 && curYR <= renderer.height) {
+        if (curYR >= 0.0 && curYR <= renderer.height) {
             flick.contentY = curYR;
+        }
+        else {
+            flick.contentY = renderer.height - root.height * 0.9;
         }
         
     }
@@ -298,7 +302,7 @@ Rectangle {
     }
 
     Timer {
-        interval: 1000
+        interval: 500
         running: true
         repeat: true
         onTriggered: {
@@ -309,6 +313,7 @@ Rectangle {
             dm.displayMethod = DisplayMethodArea.Content;
         }
     }
+
     Rectangle {
         width: parent.width * 0.025
         height: parent.height
@@ -381,11 +386,52 @@ Rectangle {
         height: parent.height * 0.025
         anchors.top: parent.top
         anchors.horizontalCenter: parent.horizontalCenter
-        MouseArea {
-            anchors.fill: parent
-            onDoubleClicked: {
+        TapHandler {
+            exclusiveSignals: (TapHandler.SingleTap | TapHandler.DoubleTap)
+            onSingleTapped: {
+                flick.contentY -= 400;
+                if (flick.contentY < 0) flick.contentY = 0;
+            }
+            onDoubleTapped: {
                 if (!selector) {
                     flick.contentY = 0;
+                }
+            }
+        }
+    }
+
+    Rectangle {
+        width: parent.width * 0.33
+        height: parent.height * 0.025
+        anchors.top: flick.bottom
+        anchors.horizontalCenter: parent.horizontalCenter
+        TapHandler {
+            exclusiveSignals: (TapHandler.SingleTap | TapHanlder.DoubleTap)
+            onSingleTapped: {
+                if (!selector && !editState) {
+                    if (renderer.height > root.height * 0.9 && flick.contentY <= renderer.height - root.height / 2 - 400) {
+                        flick.contentY += 400;
+                    }
+                    else if (renderer.height > root.height * 0.9){
+                        flick.contentY = renderer.height - root.height / 2;
+                    }
+                } else if (!selector) {
+                    if (editor.height > root.height * 0.9 && flick.contentY <= editor.height - root.height / 2 - 400) {
+                        flick.contentY += 400;
+                    }
+                    else if (editor.height > root.height * 0.9){
+                        flick.contentY = editor.height - root.height / 2;
+                    }
+                }
+            }
+            onDoubleTapped: {
+                if (!selector && !editState) {
+                    if (renderer.height > root.height * 0.9){
+                        flick.contentY = renderer.height - root.height / 2;
+                    }
+                }
+                else if (!selector) {
+                    flick.contentY = editor.height - root.height / 2;
                 }
             }
         }
@@ -428,6 +474,9 @@ Rectangle {
             else if (contentY + height <= r.y + r.height) {
                 contentY = r.y + r.height - height;
             }
+        }
+        onContentYChanged: {
+            root.lastScroll = Date.now();
         }
         Keys.onPressed: (event) => {
             switch(event.key){
@@ -490,6 +539,11 @@ Rectangle {
             }
             event.accepted = true;
         }
+        DisplayMethodArea {
+            id: dm
+            anchors.fill: parent
+            displayMethod: DisplayMethodArea.Content
+        }
 
         TextArea {
 
@@ -510,12 +564,6 @@ Rectangle {
 
             property bool leftP: false
             property bool rightP: false
-
-            DisplayMethodArea {
-                id: dm
-                anchors.fill: parent
-                displayMethod: DisplayMethodArea.Content
-            }
 
             onTextChanged: {
                 root.lastType = Date.now();
