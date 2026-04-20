@@ -789,7 +789,7 @@ Rectangle {
                 folderModel.nameFilters = [lastPart + "*.md"];
                 let noItemStartsWith = true;
                 for (var i = 0; i < selectorList.count; i++) {
-                    if (selectorList.itemAtIndex(i).text.toLowerCase().startsWith(lastPart.ctoLowerCase())) {
+                    if (selectorList.itemAtIndex(i).text.toLowerCase().startsWith(lastPart.toLowerCase())) {
                         selectorList.currentIndex = i;
                         noItemStartsWith = false;
                         break;
