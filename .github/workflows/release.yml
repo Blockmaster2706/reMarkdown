@@ -21,7 +21,7 @@ jobs:
       - name: Determine next SemVer
         id: semver
         uses: ietf-tools/semver-action@v1
-        with:
+        with: 
           token: ${{ github.token }}
           branch: main
           majorList: '+SemVer: Major,+Semver: Major,+Major'
