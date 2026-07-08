@@ -6,22 +6,18 @@ on:
       - main
 
 jobs:
-  build:
+  prepare:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        arch: [arm64, armv7h]
-    
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           tags: true
-      
+
       - name: Determine next SemVer
         id: semver
         uses: ietf-tools/semver-action@v1
-        with: 
+        with:
           token: ${{ github.token }}
           branch: main
           majorList: '+SemVer: Major,+Semver: Major,+Major'
@@ -30,36 +26,88 @@ jobs:
           noVersionBumpBehavior: patch
           noNewCommitBehavior: current
 
+      - name: Export version outputs
+        id: outputs
+        run: |
+          echo "version=${{ steps.semver.outputs.nextStrict }}" >> $GITHUB_OUTPUT
+          echo "tag=${{ steps.semver.outputs.next }}" >> $GITHUB_OUTPUT
+
+    outputs:
+      version: ${{ steps.outputs.version }}
+      tag: ${{ steps.outputs.tag }}
+
+  build:
+    needs: prepare
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: [arm64, armv7h]
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set version
+        run: echo "VERSION=${{ needs.prepare.outputs.version }}" >> $GITHUB_ENV
+
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
           go-version: '1.21'
-      
+
       - name: Install Qt dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y qt6-tools-dev qttools5-dev
-      
+
       - name: Build project for ${{ matrix.arch }}
         run: |
           chmod +x build.sh
           ./build.sh ${{ matrix.arch }}
-      
+
       - name: Create release archive
         run: |
           ARCH=${{ matrix.arch }}
-          VERSION=${{ steps.version.outputs.version }}
+          VERSION=${{ env.VERSION }}
           ZIP_NAME="reMarkdown-${ARCH}-${VERSION}.zip"
           cd rmd
           zip -r "../${ZIP_NAME}" backend manifest.json resources.rcc icon.png
           cd ..
           echo "ZIP_FILE=${ZIP_NAME}" >> $GITHUB_ENV
-      
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-zip-${{ matrix.arch }}
+          path: ${{ env.ZIP_FILE }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download arm64 artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: release-zip-arm64
+          path: artifacts
+
+      - name: Download armv7h artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: release-zip-armv7h
+          path: artifacts
+
       - name: Create Git tag for release
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          TAG=${{ steps.semver.outputs.next }}
+          TAG=${{ needs.prepare.outputs.tag }}
           if git rev-parse "${TAG}" >/dev/null 2>&1; then
             echo "Tag ${TAG} already exists."
           else
@@ -70,8 +118,8 @@ jobs:
       - name: Upload release assets
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: ${{ steps.semver.outputs.next }}
-          files: ${{ env.ZIP_FILE }}
+          tag_name: ${{ needs.prepare.outputs.tag }}
+          files: artifacts/*.zip
           draft: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
