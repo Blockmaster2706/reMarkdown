@@ -1,6 +1,9 @@
 name: Build and Release
 
-on: push
+on:
+  push:
+    branches:
+      - main
 
 jobs:
   build:
@@ -11,15 +14,22 @@ jobs:
     
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          tags: true
       
-      - name: Generate version
-        id: version
-        run: |
-          # Generate semantic version based on date and run number
-          VERSION="0.1.${{ github.run_number }}"
-          echo "version=${VERSION}" >> $GITHUB_OUTPUT
-          echo "Generated version: ${VERSION}"
-      
+      - name: Determine next SemVer
+        id: semver
+        uses: ietf-tools/semver-action@v1
+        with:
+          token: ${{ github.token }}
+          branch: main
+          majorList: '+SemVer: Major,+Semver: Major,+Major'
+          minorList: '+SemVer: Minor,+Semver: Minor,+Minor'
+          patchList: ''
+          noVersionBumpBehavior: patch
+          noNewCommitBehavior: current
+
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
@@ -45,10 +55,22 @@ jobs:
           cd ..
           echo "ZIP_FILE=${ZIP_NAME}" >> $GITHUB_ENV
       
+      - name: Create Git tag for release
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          TAG=${{ steps.semver.outputs.next }}
+          if git rev-parse "${TAG}" >/dev/null 2>&1; then
+            echo "Tag ${TAG} already exists."
+          else
+            git tag "${TAG}"
+            git push origin "${TAG}"
+          fi
+
       - name: Upload release assets
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: v${{ steps.version.outputs.version }}
+          tag_name: ${{ steps.semver.outputs.next }}
           files: ${{ env.ZIP_FILE }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
