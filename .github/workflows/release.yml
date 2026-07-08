@@ -72,5 +72,6 @@ jobs:
         with:
           tag_name: ${{ steps.semver.outputs.next }}
           files: ${{ env.ZIP_FILE }}
+          draft: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
