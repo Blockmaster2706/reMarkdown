@@ -41,19 +41,22 @@ Rectangle {
     property bool editState: false
     property int cursorPosition: 0
     property real curY: 0.0
-    property bool metaDown: false
+    property real curYR: 0.0
     property bool selector: true
     property string folder: "/home/root/reMarkdown/"
     property string file: ""
     property string selectorText: ""
     property var lastType: -1
-    property int foldercheck: -1
+    property var lastScroll: -1
     property string curFilePath: ""
     property string currentFolder: "/home/root/reMarkdown/"
     property string stub: ""
-    property bool closeViaAppload: true
     property bool extKeyboard: false
     property int wordCount: 0
+    property string pathChecked: ""
+    property bool relativePath: false
+    property string clickedLink: ""
+    property bool closeViaAppload: true
 
     signal close
     function unloading() {
@@ -62,8 +65,56 @@ Rectangle {
         }
         console.log("We're unloading!");
         if (closeViaAppload) {
-            console.log("Terminating via appload control");
+            closeViaAppload = false;
             appload.terminate();
+        }
+    }
+
+    signal renderReceived
+    onRenderReceived: {
+        editState = false;
+        if (curYR >= 0.0 && curYR <= renderer.height) {
+            flick.contentY = curYR;
+        }
+        else {
+            flick.contentY = renderer.height - root.height * 0.9;
+        }
+        
+    }
+
+    signal folderCheckReceived
+    onFolderCheckReceived: {
+        if (clickedLink.length > 0 && relativePath) {
+            let xhr = new XMLHttpRequest();
+            xhr.open('GET', "file://" + root.currentFolder + clickedLink, false);
+            xhr.send();
+            if (xhr.status === 200 || xhr.status === 0) {
+                console.log(clickedLink + " is a .md file: " + root.currentFolder + clickedLink + ", loading.");
+                saveFile();
+                loadFile("file://" + root.currentFolder + clickedLink);
+                return;
+            }
+        }
+        else if (clickedLink.length > 0) {
+            let xhr = new XMLHttpRequest();
+            xhr.open('GET', "file://" + clickedLink, false);
+            xhr.send();
+            if (xhr.status === 200 || xhr.status === 0) {
+                console.log(clickedLink + " is a .md file in " + root.folder + root.pathChecked + ", loading.");
+                saveFile();
+                loadFile("file://" + clickedLink);
+                return;
+            }
+        }
+        else {
+            folderModel.folder = "file://" + root.folder + root.pathChecked;
+        }
+    }
+
+    signal folderCheckError
+    onFolderCheckError: {
+        if (clickedLink.length == 0) {
+            selectorTextEdit.text = "";
         }
     }
 
@@ -72,28 +123,38 @@ Rectangle {
         applicationID: "reMarkdown"
         onMessageReceived: (type, contents) => {
             console.log("Appload received message " + type);
-            if (type == 200) {
-                console.log("init");
-                folderModel.folder = "file://" + root.folder;
-                return;
-            }
-            else if (type == 201) {
-                root.extKeyboard = true;
-                Qt.inputMethod.hide();
-                return;
-            }
             switch (type) {
+                case 201:
+                    root.extKeyboard = true;
+                    Qt.inputMethod.hide();
+                case 200:
+                    console.log("init");
+                    folderModel.folder = "file://" + root.folder;
+                    break;
                 case 101:
                     console.log("rendered HTML returned.");
-                    docHTML = contents;
+                    let js = JSON.parse(contents);
+                    docHTML = js.text;
                     renderer.text = docHTML;
+                    root.wordCount = js.wc;
+                    root.renderReceived();
                     break;
-                case 102:
-                    console.log("rendered HTML word count: " + contents);
-                    root.wordCount = parseInt(contents, 10);
+                case 103:
+                    console.log("error while rendering: " + contents);
+                    flick.contentY = 0;
+                    root.wordCount = -1;
+                    renderer.text = "COULD NOT RENDER PROPERLY";
+                    root.renderReceived();
+                    break;
                 case 301:
                 case 302:
-                    foldercheck = 1;
+                    root.folderCheckReceived();
+                    break;
+                case 303:
+                case 304:
+                case 305:
+                    console.log("folder check error: " + contents);
+                    root.folderCheckError();
                     break;
             }
         }
@@ -119,17 +180,18 @@ Rectangle {
             cursorPosition = editor.cursorPosition;
             curY = flick.contentY;
             root.doc = editor.text;
-            editState = false;
             if (editor.text.length > 0) {
                 appload.sendMessage(100, doc);
             }
             else {
                 docHTML = "";
                 renderer.text = "";
+                console.log("empty file, ignoring render request");
             }
         } else {
             console.log("Toggling to edit view");
             wc.visible = false;
+            curYR = flick.contentY;
             editState = true;
             editor.text = root.doc;
             editor.cursorPosition = cursorPosition;
@@ -162,6 +224,8 @@ Rectangle {
         }
         if (fileUrl != file) {
             cursorPosition = 0;
+            curYR = 0.0;
+            renderer.text = "";
         }
         root.currentFolder = fileUrl.slice("file://".length, fileUrl.lastIndexOf("/") + 1);
         var xhr = new XMLHttpRequest();
@@ -197,7 +261,7 @@ Rectangle {
     function handleKeyEvent(event){
         if (event.key == Qt.Key_Escape) {
             if (selector) {
-                root.closeViaAppload = false;
+                closeViaAppload = false;
                 appload.terminate();
             }
             else if (editState) {
@@ -238,7 +302,7 @@ Rectangle {
     }
 
     Timer {
-        interval: 1000
+        interval: 500
         running: true
         repeat: true
         onTriggered: {
@@ -249,6 +313,7 @@ Rectangle {
             dm.displayMethod = DisplayMethodArea.Content;
         }
     }
+
     Rectangle {
         width: parent.width * 0.025
         height: parent.height
@@ -272,7 +337,7 @@ Rectangle {
             height: parent.height * 0.9
             onClicked: {
                 if (selector) {
-                    root.closeViaAppload = false;
+                    closeViaAppload = false;
                     appload.terminate();
                 }
                 else if (!editState) {
@@ -315,11 +380,67 @@ Rectangle {
             }
         }
     }
+
+    Rectangle {
+        width: parent.width * 0.33
+        height: parent.height * 0.025
+        anchors.top: parent.top
+        anchors.horizontalCenter: parent.horizontalCenter
+        TapHandler {
+            exclusiveSignals: (TapHandler.SingleTap | TapHandler.DoubleTap)
+            onSingleTapped: {
+                flick.contentY -= 400;
+                if (flick.contentY < 0) flick.contentY = 0;
+            }
+            onDoubleTapped: {
+                if (!selector) {
+                    flick.contentY = 0;
+                }
+            }
+        }
+    }
+
+    Rectangle {
+        width: parent.width * 0.33
+        height: parent.height * 0.025
+        anchors.top: flick.bottom
+        anchors.horizontalCenter: parent.horizontalCenter
+        TapHandler {
+            exclusiveSignals: (TapHandler.SingleTap | TapHandler.DoubleTap)
+            onSingleTapped: {
+                if (!selector && !editState) {
+                    if (renderer.height > root.height * 0.9 && flick.contentY <= renderer.height - root.height / 2 - 400) {
+                        flick.contentY += 400;
+                    }
+                    else if (renderer.height > root.height * 0.9){
+                        flick.contentY = renderer.height - root.height / 2;
+                    }
+                } else if (!selector) {
+                    if (editor.height > root.height * 0.9 && flick.contentY <= editor.height - root.height / 2 - 400) {
+                        flick.contentY += 400;
+                    }
+                    else if (editor.height > root.height * 0.9){
+                        flick.contentY = editor.height - root.height / 2;
+                    }
+                }
+            }
+            onDoubleTapped: {
+                if (!selector && !editState) {
+                    if (renderer.height > root.height * 0.9){
+                        flick.contentY = renderer.height - root.height / 2;
+                    }
+                }
+                else if (!selector) {
+                    flick.contentY = editor.height - root.height / 2;
+                }
+            }
+        }
+    }
     
     Flickable {
-	id: flick
-	width: parent.width * 0.95
-	height: Qt.inputMethod.visible ? parent.height * 0.95 - Qt.inputMethod.keyboardRectangle.height : parent.height * 0.95
+	    id: flick
+	    width: parent.width * 0.95
+	    height: Qt.inputMethod.visible ? parent.height * 0.95 - Qt.inputMethod.keyboardRectangle.height : parent.height * 0.95
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.top: parent.top
         anchors.topMargin: parent.height * 0.025
@@ -353,6 +474,9 @@ Rectangle {
             else if (contentY + height <= r.y + r.height) {
                 contentY = r.y + r.height - height;
             }
+        }
+        onContentYChanged: {
+            root.lastScroll = Date.now();
         }
         Keys.onPressed: (event) => {
             switch(event.key){
@@ -415,6 +539,11 @@ Rectangle {
             }
             event.accepted = true;
         }
+        DisplayMethodArea {
+            id: dm
+            anchors.fill: parent
+            displayMethod: DisplayMethodArea.Content
+        }
 
         TextArea {
 
@@ -431,15 +560,10 @@ Rectangle {
             renderType: Text.NativeRendering
             readOnly: false
             font.pointSize: 28
+            selectByKeyboard: true
 
             property bool leftP: false
             property bool rightP: false
-
-            DisplayMethodArea {
-                id: dm
-                anchors.fill: parent
-                displayMethod: DisplayMethodArea.Content
-            }
 
             onTextChanged: {
                 root.lastType = Date.now();
@@ -531,15 +655,10 @@ Rectangle {
                     }
                     let linkedFileFolder = root.currentFolder.slice(root.folder.length) + link.slice(0, link.lastIndexOf("/") + 1);
                     if (linkedFileFolder.length > 0) {
+                        root.relativePath = true;
+                        root.clickedLink = link;
+                        root.pathChecked = linkedFileFolder;
                         appload.sendMessage(300, linkedFileFolder);
-                    }
-                    let xhr = new XMLHttpRequest();
-                    xhr.open('GET', "file://" + root.currentFolder + link, false);
-                    xhr.send();
-                    if (xhr.status === 200 || xhr.status === 0) {
-                        console.log(link + " is a .md file in " + root.currentFolder + linkedFileFolder + ", loading.");
-                        saveFile();
-                        loadFile("file://" + root.currentFolder + link);
                         return;
                     }
                 }
@@ -550,16 +669,22 @@ Rectangle {
                     }
                     let linkedFileFolder = link.slice(root.folder.length, link.lastIndexOf("/") + 1);
                     if (linkedFileFolder.length > 0) {
+                        root.relativePath = false;
+                        root.clickedLink = link;
+                        root.pathChecked = linkedFileFolder;
                         appload.sendMessage(300, linkedFileFolder);
-                    }
-                    let xhr = new XMLHttpRequest();
-                    xhr.open('GET', "file://" + link, false);
-                    xhr.send();
-                    if (xhr.status === 200 || xhr.status === 0) {
-                        console.log(link + " is a .md file in " + root.folder +", loading.");
-                        saveFile();
-                        loadFile("file://" + link);
                         return;
+                    }
+                    else {
+                        let xhr = new XMLHttpRequest();
+                        xhr.open('GET', "file://" + link, false);
+                        xhr.send();
+                        if (xhr.status === 200 || xhr.status === 0) {
+                            console.log(link + " is a .md file in " + root.folder +", loading.");
+                            saveFile();
+                            loadFile("file://" + link);
+                            return;
+                        }
                     }
                 }
                 console.log(link + " is not a .md file in " + root.folder + ", ignoring.");
@@ -639,8 +764,10 @@ Rectangle {
                             folderModel.folder = "file://" + root.folder;
                             selectorTextEdit.text = "";
                         } else {
+                            root.pathChecked = folderPath;
+                            root.clickedLink = "";
+                            root.relativePath = false;
                             appload.sendMessage(300, folderPath);
-                            folderModel.folder = "file://" + root.folder + folderPath;
                         }
                     }
                     if (selectorText.slice(-1) == "/") {

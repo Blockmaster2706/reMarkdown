@@ -173,7 +173,11 @@ func (al *AppLoad) Run() error {
 			MsgType:  msgType,
 			Contents: contents,
 		}
+
 		al.backend.HandleMessage(replier, message)
+		if msgType == MsgSystemTerminate {
+			break
+		}
 
 		// Process any internal messages
 		select {
@@ -186,11 +190,6 @@ func (al *AppLoad) Run() error {
 
 	// Handle termination
 	replier.Lock()
-	al.backend.HandleMessage(replier, Message{
-		MsgType:  MsgSystemTerminate,
-		Contents: "",
-	})
-
 	return nil
 }
 
